@@ -1,0 +1,4 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "ALS324A")(type "KiCad")(uri "${KIPRJMOD}/ALS324A.kicad_sym")(options "")(descr ""))
+)
