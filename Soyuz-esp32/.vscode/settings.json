@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "ntpclient.h": "c",
+        "new": "cpp"
+    }
+}

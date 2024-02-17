@@ -1,0 +1,10 @@
+Soyuz-esp32/.pio
+Soyuz-esp32/.vscode/.browse.c_cpp.db*
+Soyuz-esp32/.vscode/c_cpp_properties.json
+Soyuz-esp32/.vscode/launch.json
+Soyuz-esp32/.vscode/ipch
+Soyuz-esp32/include/secrets.h
+MyMechanical
+reference
+*-backups
+*.bak
