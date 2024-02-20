@@ -188,7 +188,7 @@ void setup()
   settings.currentMode = DeviceSettings::emulationMode; // force emulation mode if wifi is not enabled
 #endif
 
-  settings.currentMode = DeviceSettings::emulationMode;
+  settings.currentMode = DeviceSettings::normalMode;
   clockMode = settings.currentMode;
 
   if (settings.currentMode != settings.defualtMode) // we booted into a different mode at the request of the user
@@ -267,107 +267,6 @@ void loop()
     stop();
   }
 #endif
-
-  normalMode();
-}
-/*
-void emulationMode()
-{
-  if (digitalRead(ON_SW_PIN)) // BKL, On Off Switch, ON
-  {
-  }
-  else // OFF
-  {
-  }
-
-  if (digitalRead(RUN_CORRECT_SW_PIN)) // RUN
-  {
-    if (digitalRead(OP_SW_PIN)) // current time
-    {
-      displayTime();
-    }
-    else // OP
-    {
-      displayAlarm();
-    }
-  }
-  else // CORRECTION
-  {
-    if (digitalRead(OP_SW_PIN)) // current time
-    {
-      int timeArr[3] = {hour, minute, second};
-      if (setTime(timeArr))
-      {
-        struct tm timeinfo;
-        timeinfo.tm_hour = timeArr[0];
-        timeinfo.tm_min = timeArr[1];
-        timeinfo.tm_sec = timeArr[2];
-        timeinfo.tm_year = 124; // 2024
-        timeinfo.tm_mon = 0;
-        timeinfo.tm_mday = 1; // Day 1 of January
-        time_t t = mktime(&timeinfo);
-        struct timeval tv = {.tv_sec = t};
-        settimeofday(&tv, nullptr); // Set the system time
-      }
-    }
-    else // OP
-    {
-      int timeArr[3] = {alarmHour, alarmMinute, alarmSecond};
-
-      if (setTime(timeArr))
-      {
-        alarmEnable = true; // alarm is not enabled until the alarm has been set
-        alarmHour = timeArr[0];
-        alarmMinute = timeArr[1];
-        alarmSecond = timeArr[2];
-      }
-    }
-  }
-  // stop watch secition
-  if (readButton(START_STOP_BUT_PIN)) // stop watch button pressed
-  {
-    stopWatchMode++;
-    if (stopWatchMode > 2)
-      stopWatchMode = 0;
-    // do some cleanup when the mode changes
-    switch (stopWatchMode)
-    {
-    case 0:
-      if (xSemaphoreTake(displayMutex, pdMS_TO_TICKS(5)))
-      {
-        display.blankSmallDisplay();
-        xSemaphoreGive(displayMutex);
-      }
-      break;
-    case 1:
-      if (!stopWatchRunning)
-      {
-        stopWatchRunning = true;
-        stopWatchMinute = 0;
-        stopWatchSecond = 0;
-        xTaskCreate(stopWatchTask, "stopWatchTask", 4096, NULL, 1, NULL);
-        // stop watch task runs in background
-      }
-      break;
-    case 2:
-      // task checks this var. will stop when false
-      stopWatchRunning = false;
-      break;
-    }
-  }
-
-  // alarm section
-  if (alarmEnable)
-  {
-    if (alarmMinute == minute && alarmSecond == second)
-    {
-      // TODO: Trigger alarm
-    }
-  }
-)
-*/
-void normalMode()
-{
   if (digitalRead(ON_SW_PIN)) // BKL, On Off Switch, ON
   {
   }
