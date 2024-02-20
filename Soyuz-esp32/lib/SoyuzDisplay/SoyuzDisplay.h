@@ -1,6 +1,4 @@
 /*
-Library for my INS-1 Nixie Tube Matrix.
-Nathan Safran - 9/10/2023
 */
 
 #ifndef SoyuzDisplay_h
@@ -10,17 +8,47 @@ Nathan Safran - 9/10/2023
 
 class SoyuzDisplay
 {
-  public:
-    SoyuzDisplay(int dataPin, int clockPin, int loadPin);
-    void writeValueToDisplay(int number[], bool dot[]); 
-    void writeValueToDisplay(int number, int position, bool dot);
-    void writeTimeToDisplay(int hour, int minute, int second, byte dotsMask); 
-    void writeTimeToSmallDisplay(int minute, int second, byte dotsMask); 
-    void blankTimeDisplay();
-    void blankSmallDisplay();
-    
-  private:
-    LedControl lc;  
+public:
+  SoyuzDisplay(int dataPin, int clockPin, int loadPin);
+  void writeValueToDisplay(int number[], bool dot[]);
+  void writeValueToDisplay(int number, int position, bool dot);
+  void writeTimeToDisplay(int hour, int minute, int second, byte dotsMask);
+  void writeTimeToSmallDisplay(int minute, int second, byte dotsMask);
+  void writeChar(char val, int position, bool dot);
+  void writeStringToDisplay(String s);
+  void writeSoyuz();  // print soyuz in cyrillic
+  void blankTimeDisplay();
+  void blankSmallDisplay();
+
+private:
+  LedControl lc;
+  const uint8_t myCharTable[128] = {
+      B01111110, B00110000, B01101101, B01111001, B00110011, B01011011, B01011111, B01110000,
+      B01111111, B01111011, B01110111, B00011111, B00001101, B00111101, B01001111, B01000111,
+      B00000000, B00000000, B00000000, B00000000, B00000000, B00000000, B00000000, B00000000,
+      B00000000, B00000000, B00000000, B00000000, B00000000, B00000000, B00000000, B00000000,
+      B00000000, B00000000, B00000000, B00000000, B00000000, B00000000, B00000000, B00000000,
+      B00000000, B00000000, B00000000, B00000000, B10000000, B00000001, B10000000, B00000000,
+      // 48
+      B01111110, B00110000, B01101101, B01111001, B00110011, B01011011, B01011111, B01110000,
+      // 56
+      B01111111, B01111011, B00000000, B00000000, B00000000, B00000000, B00000000, B00000000,
+      // 64
+      B00000000, B01110111, B00011111, B00001101, B00111101, B01001111, B01000111, B00000000,
+      // 72
+      B00110111, B00110000, B00000000, B00000000, B00001110, B00000000, B00000000, B00011101,
+      // 80
+      B01100111, B00000000, B00000101, B01011011, B01110000, B00011100, B00000000, B00000000,
+      // 88
+      B00000000, B00111011, B01101101, B01011011, B00000000, B00000000, B00000000, B00001000,
+      // 96
+      B00000000, B01110111, B00011111, B00001101, B00111101, B01001111, B01000111, B00000000,
+      // 104
+      B00110111, B00110000, B00000000, B00000000, B00001110, B00000000, B00010101, B00011101,
+      // 112
+      B01100111, B00000000, B00000101, B01011011, B00000000, B00011100, B00000000, B00000000,
+      // 120
+      B0000000, B00111011, B01101101, B00000000, B00000000, B00000000, B00000000, B00000000};
 };
 
 #endif

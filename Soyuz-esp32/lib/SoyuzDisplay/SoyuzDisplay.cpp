@@ -1,6 +1,4 @@
 /*
-Library for my INS-1 Nixie Tube Matrix.
-Nathan Safran - 9/10/2023
 */
 
 #include "Arduino.h"
@@ -57,16 +55,50 @@ void SoyuzDisplay::writeTimeToSmallDisplay(int minute, int second, byte dotsMask
     lc.setDigit(1, 4, minute / 10, dotsMask >> 3 & 1);
 }
 
+void SoyuzDisplay::writeChar(char val, int position, bool dot)
+{
+    if (val > 127)
+        val = 32;
+    byte value = myCharTable[val] | (dot ? B10000000 : 0);
+    if (position > 4)
+    {
+        lc.setRow(1, position - 5, value);
+    }
+    else
+    {
+        lc.setRow(0, position, value);
+    }
+}
+
+void SoyuzDisplay::writeStringToDisplay(String s) //  only displays first 10 chars. overflows to stop watch
+{
+    for (int i = 0; i < s.length(); i++)
+    {
+        if (i > 9)
+            return;
+        writeChar(s[i], i, 0);
+    }
+}
+void SoyuzDisplay::writeSoyuz()
+{
+    writeChar('C', 5, 0);
+    writeChar('o', 4, 0);
+    lc.setRow(0, 3, B00000111); // half of yu character
+    writeChar('0', 2, 0);
+    writeChar('3', 1, 0);
+    writeChar(' ', 0, 0);
+}
+
 void SoyuzDisplay::blankTimeDisplay()
 {
     lc.clearDisplay(0);
-    lc.setChar(1,0,' ',false);
+    lc.setChar(1, 0, ' ', false);
 }
 
 void SoyuzDisplay::blankSmallDisplay()
 {
-    lc.setChar(1,1,' ',false);
-    lc.setChar(1,2,' ',false);
-    lc.setChar(1,3,' ',false);
-    lc.setChar(1,4,' ',false);
+    lc.setChar(1, 1, ' ', false);
+    lc.setChar(1, 2, ' ', false);
+    lc.setChar(1, 3, ' ', false);
+    lc.setChar(1, 4, ' ', false);
 }
