@@ -61,6 +61,9 @@ SemaphoreHandle_t displayMutex;
 
 // Global Vars
 unsigned long lastButtonPress = 0;
+// Not sure if this is the best way to do this
+unsigned long refreshDateDisplayTimer = 0;
+unsigned long refreshAlarmDisplayTimer = 0;
 // DateTime Vars
 uint8_t hour = 0, minute = 0, second = 0, month = 0, day = 0;
 uint8_t alarmHour = 0, alarmMinute = 0, alarmSecond = 0;
@@ -79,10 +82,11 @@ struct DeviceSettings
   char ntpServer[50];
   long gmtOffset_sec;
   int daylightOffset_sec;
+  int normalModeAlarm[3];
   enum modes
   {
     emulationMode,
-    realMode
+    normalMode
   };
   modes defualtMode;
   modes currentMode;
@@ -104,7 +108,7 @@ void displayTime();
 void displayDate();
 void displayAlarm();
 void stopWatchTask(void *parameter);
-void wifiManagerSetup(int mode);
+bool wifiManagerSetup(bool adhoc);
 
 bool setTime(int time[]); // 1 we set time, 0 we exited without changing time
 
@@ -116,26 +120,26 @@ void initWiFi();
 
 void setup()
 {
+  // setup input pins
+  pinMode(RUN_CORRECT_SW_PIN, INPUT);
+  pinMode(OP_SW_PIN, INPUT);
+  pinMode(ON_SW_PIN, INPUT);
+  pinMode(START_STOP_BUT_PIN, INPUT_PULLUP);
+  pinMode(ENTER_BUT_PIN, INPUT_PULLUP);
   delay(50);
   Serial.begin(115200);
   Serial.println("ON");
+  displayMutex = xSemaphoreCreateMutex();
 
-#ifdef ENABLE_WIFI
-  unsigned long resetTime = millis();
-  while (!digitalRead(ENTER_BUT_PIN))
-  {
-    // display.writechar("RESET");
-    //  not implemented
-    if (millis() > resetTime + 5000UL)
-    {                      // if held down for 5 seconds
-      wifiManagerSetup(0); // enter wifi manager and reset settings
-    }
-  }
-  wifiManagerSetup(1);
-#endif
   EEPROM.begin(128);
-  // bool settingsValid = readEEPROMWithCRC(settings);
-  bool settingsValid = false;
+  bool settingsValid = readEEPROMWithCRC(settings);
+  // bool settingsValid = false;
+  Serial.println(settings.currentMode);
+  Serial.println(settings.defualtMode);
+  Serial.println(settings.twelveHourMode);
+  Serial.println(settings.ntpServer);
+  Serial.println(settings.gmtOffset_sec);
+  Serial.println(settings.daylightOffset_sec);
   if (!settingsValid)
   {
     Serial.println("CRC BAD");
@@ -145,6 +149,9 @@ void setup()
     settings.daylightOffset_sec = 3600;
     settings.currentMode = DeviceSettings::emulationMode;
     settings.defualtMode = DeviceSettings::emulationMode;
+    settings.normalModeAlarm[0] = 0;
+    settings.normalModeAlarm[1] = 0;
+    settings.normalModeAlarm[2] = 0;
 
     writeEEPROMWithCRC(settings);
     EEPROM.commit();
@@ -153,15 +160,35 @@ void setup()
   {
     Serial.println("CRC GOOD");
   }
-  // setup input pins
-  pinMode(RUN_CORRECT_SW_PIN, INPUT);
-  pinMode(OP_SW_PIN, INPUT);
-  pinMode(ON_SW_PIN, INPUT);
-  pinMode(START_STOP_BUT_PIN, INPUT_PULLUP);
-  pinMode(ENTER_BUT_PIN, INPUT_PULLUP);
+  display.writeStringToDisplay("RESET SOYUZ ERR WIFI");
+  display.writeSoyuz();
 
-  displayMutex = xSemaphoreCreateMutex();
+#ifdef ENABLE_WIFI
+  unsigned long resetTime = millis();
+  while (!digitalRead(ENTER_BUT_PIN))
+  {
+    delay(500);
+    Serial.println("SET");
+    display.writeStringToDisplay("SET");
+    if (millis() > resetTime + 5000UL)
+    {                         // if held down for 5 seconds
+      wifiManagerSetup(true); // adhoc change settings
+    }
+  }
 
+  // wifiManagerSetup(true);
+  if (!wifiManagerSetup(false)) // if we fail to connect to wifi, fall back to emulation mode
+  {
+    settings.currentMode = DeviceSettings::emulationMode;
+    display.writeStringToDisplay("FAIL  CONN");
+    delay(5000);
+  }
+#endif
+#ifndef ENABLE_WIFI
+  settings.currentMode = DeviceSettings::emulationMode; // force emulation mode if wifi is not enabled
+#endif
+
+  settings.currentMode = DeviceSettings::emulationMode;
   clockMode = settings.currentMode;
 
   if (settings.currentMode != settings.defualtMode) // we booted into a different mode at the request of the user
@@ -184,14 +211,17 @@ void setup()
     struct timeval tv = {.tv_sec = t};
     settimeofday(&tv, nullptr); // Set the system time
     timeDots = 1;
+    delay(500);
     xTaskCreate(updateDateTimeTask, "updateDateTimeTask", 4096, NULL, 1, NULL);
   }
   else
   {
-    // connect to WiFi
-    // init and get the time
     configTime(settings.gmtOffset_sec, settings.daylightOffset_sec, settings.ntpServer);
-    // updateDateTime();
+    alarmHour = settings.normalModeAlarm[0];
+    alarmMinute = settings.normalModeAlarm[1];
+    alarmSecond = settings.normalModeAlarm[2];
+    delay(500);
+    xTaskCreate(updateDateTimeTask, "updateDateTimeTask", 4096, NULL, 1, NULL);
   }
 
 // setCpuFrequencyMhz(80); // slow down for power savings
@@ -238,15 +268,9 @@ void loop()
   }
 #endif
 
-  if (clockMode == DeviceSettings::emulationMode)
-  {
-    emulationMode();
-  }
-  else // modern mode
-  {
-  }
+  normalMode();
 }
-
+/*
 void emulationMode()
 {
   if (digitalRead(ON_SW_PIN)) // BKL, On Off Switch, ON
@@ -265,7 +289,6 @@ void emulationMode()
     else // OP
     {
       displayAlarm();
-      delay(50);
     }
   }
   else // CORRECTION
@@ -341,8 +364,123 @@ void emulationMode()
       // TODO: Trigger alarm
     }
   }
-}
+)
+*/
+void normalMode()
+{
+  if (digitalRead(ON_SW_PIN)) // BKL, On Off Switch, ON
+  {
+  }
+  else // OFF
+  {
+  }
 
+  if (digitalRead(RUN_CORRECT_SW_PIN)) // RUN
+  {
+    if (digitalRead(OP_SW_PIN)) // current time
+    {
+      displayTime();
+    }
+    else // OP
+    {
+      displayAlarm();
+    }
+  }
+  else // CORRECTION
+  {
+    if (digitalRead(OP_SW_PIN)) // current time
+    {
+      if (clockMode == DeviceSettings::emulationMode) // if emulation, allow to set time
+      {
+        int timeArr[3] = {hour, minute, second};
+        if (setTime(timeArr))
+        {
+          struct tm timeinfo;
+          timeinfo.tm_hour = timeArr[0];
+          timeinfo.tm_min = timeArr[1];
+          timeinfo.tm_sec = timeArr[2];
+          timeinfo.tm_year = 124; // 2024
+          timeinfo.tm_mon = 0;
+          timeinfo.tm_mday = 1; // Day 1 of January
+          time_t t = mktime(&timeinfo);
+          struct timeval tv = {.tv_sec = t};
+          settimeofday(&tv, nullptr); // Set the system time
+        }
+      }
+      else // normal mode, do nothing
+      {
+        // normal mode, decide what to do
+      }
+    }
+    else // OP
+    {
+      int timeArr[3] = {alarmHour, alarmMinute, alarmSecond};
+      if (setTime(timeArr))
+      {
+        alarmEnable = true; // alarm is not enabled until the alarm has been set
+        alarmHour = timeArr[0];
+        alarmMinute = timeArr[1];
+        alarmSecond = timeArr[2];
+        if (clockMode == DeviceSettings::normalMode) // if normal mode, set alarm in eeprom
+        {
+          settings.normalModeAlarm[0] = alarmHour;
+          settings.normalModeAlarm[1] = alarmMinute;
+          settings.normalModeAlarm[2] = alarmSecond;
+          writeEEPROMWithCRC(settings);
+          EEPROM.commit();
+        }
+      }
+    }
+  }
+  // stop watch section. Mostly same between both modes
+  if (stopWatchMode == 0 && clockMode == DeviceSettings::normalMode)
+  {
+    displayDate(); // otherwise, display the date
+  }
+  if (readButton(START_STOP_BUT_PIN)) // stop watch button pressed
+  {
+    stopWatchMode++;
+    if (stopWatchMode > 2)
+      stopWatchMode = 0;
+    // do some cleanup when the mode changes
+    switch (stopWatchMode)
+    {
+    case 0:                                           // reset
+      if (clockMode == DeviceSettings::emulationMode) // if emulation, just blank display when reset
+      {
+        if (xSemaphoreTake(displayMutex, pdMS_TO_TICKS(5)))
+        {
+          display.blankSmallDisplay();
+          xSemaphoreGive(displayMutex);
+        }
+      }
+      break;
+    case 1: // start
+      if (!stopWatchRunning)
+      {
+        stopWatchRunning = true;
+        stopWatchMinute = 0;
+        stopWatchSecond = 0;
+        xTaskCreate(stopWatchTask, "stopWatchTask", 4096, NULL, 1, NULL);
+        // stop watch task runs in background
+      }
+      break;
+    case 2: // stop
+      // task checks this var. will stop when false
+      stopWatchRunning = false;
+      break;
+    }
+  }
+
+  // alarm section
+  if (alarmEnable)
+  {
+    if (alarmMinute == minute && alarmSecond == second)
+    {
+      // TODO: Trigger alarm
+    }
+  }
+}
 boolean readButton(uint8_t pin) // true if button pressed
 {
   // Read the button state
@@ -427,15 +565,28 @@ void displayTime()
 }
 void displayDate()
 {
-  Serial.printf("%02d/%02d/%d %02d:%02d:%02d\n", month, day, year, hour, minute, second); // debug
+  if (millis() > refreshDateDisplayTimer + 1000UL) // write display every second
+  {
+    refreshDateDisplayTimer = millis();
+    if (xSemaphoreTake(displayMutex, pdMS_TO_TICKS(5)))
+    {
+      display.writeTimeToSmallDisplay(month, day, 0);
+      xSemaphoreGive(displayMutex);
+    }
+    Serial.printf("%02d/%02d\n", month, day); // debug
+  }
 }
 
 void displayAlarm()
 {
-  if (xSemaphoreTake(displayMutex, pdMS_TO_TICKS(5)))
+  if (millis() > refreshAlarmDisplayTimer + 1000UL) // write display every second
   {
-    display.writeTimeToDisplay(alarmHour, alarmMinute, alarmSecond, timeDots);
-    xSemaphoreGive(displayMutex);
+    refreshAlarmDisplayTimer = millis();
+    if (xSemaphoreTake(displayMutex, pdMS_TO_TICKS(5)))
+    {
+      display.writeTimeToDisplay(alarmHour, alarmMinute, alarmSecond, timeDots);
+      xSemaphoreGive(displayMutex);
+    }
   }
 }
 
@@ -652,58 +803,91 @@ void writeEEPROMWithCRC(const DeviceSettings &settings) // Write EEPROM with CRC
   EEPROM.put(EEPROM_CRC_ADDRESS, calculatedCRC);
 }
 
-void wifiManagerSetup(int mode)
-{
 #ifdef ENABLE_WIFI
+WiFiManager wm;
+String getParam(String name)
+{
+  // read parameter from server, for customhmtl input
+  String value;
+  if (wm.server->hasArg(name))
+  {
+    value = wm.server->arg(name);
+  }
+  return value;
+}
+
+void saveParamCallback()
+{
+
+  Serial.println("[CALLBACK] saveParamCallback fired");
+  Serial.printf("ntp: %s\n", getParam("ntp_server"));
+  Serial.printf("Offset: %s\n", getParam("gmt_offset"));
+  Serial.printf("Daylight: %s\n", getParam("daylightOffset"));
+
+  Serial.println("defaultmode = " + getParam("defaultmode"));
+  Serial.println("twelvehourmpde= " + getParam("twelveHourMode"));
+
+  settings.twelveHourMode = ((char)getParam("twelveHourMode")[0] == '0');
+  String ntpServerValue = getParam("ntp_server");
+  if (!ntpServerValue.isEmpty())
+  {
+    ntpServerValue.toCharArray(settings.ntpServer, sizeof(settings.ntpServer));
+  }
+  settings.gmtOffset_sec = getParam("gmt_offset").toInt();
+  settings.daylightOffset_sec = getParam("daylightOffset").toInt();
+  settings.defualtMode = ((char)getParam("defaultmode")[0] == '0' ? DeviceSettings::emulationMode : DeviceSettings::normalMode);
+
+  writeEEPROMWithCRC(settings);
+  EEPROM.commit();
+}
+bool wifiManagerSetup(bool adhoc)
+{
   WiFi.mode(WIFI_STA); // explicitly set mode, esp defaults to STA+AP
   Serial.setDebugOutput(true);
 
-  WiFiManager wm;
   WiFiManagerParameter ntpServerCustomField;
   WiFiManagerParameter gmtOffsetCustomField;
   WiFiManagerParameter daylightOffsetCustomField;
   WiFiManagerParameter defaultModeCustomField;
   WiFiManagerParameter twelveHourCustomField;
+  wm.setClass("invert"); // dark mode
+  wm.setParamsPage(true);
 
   new (&ntpServerCustomField) WiFiManagerParameter("ntp_server", "NTP Server", "pool.ntp.org", 50);
   new (&gmtOffsetCustomField) WiFiManagerParameter("gmt_offset", "GMT Offset (secs) - EST default", "-18000", 50);
   new (&daylightOffsetCustomField) WiFiManagerParameter("daylightOffset", "Daylight Time Offset (secs)", "3600", 50);
 
-  const char *custom_radio_str = "<br/><label for='customfieldid'>Custom Field Label</label><input type='radio' name='customfieldid' value='1' checked> One<br><input type='radio' name='customfieldid' value='2'> Two<br><input type='radio' name='customfieldid' value='3'> Three";
-  new (&custom_field) WiFiManagerParameter(custom_radio_str); // custom html input
-  switch (mode)
+  const char *defaultModeCustomField_str = "<br/><label for='defaultmode'>Default Mode on bootup<br></label><input type='radio' name='defaultmode' value='0' checked> Emulation<br><input type='radio' name='defaultmode' value='1'> normal";
+  new (&defaultModeCustomField) WiFiManagerParameter(defaultModeCustomField_str); // custom html input
+
+  const char *twelveHourCustomField_str = "<br/><label for='twelveHourMode'>Hour Display for normal mdoe<br></label><input type='radio' name='twelveHourMode' value='0' checked> 12<br><input type='radio' name='twelveHourMode' value='1'> 24";
+  new (&twelveHourCustomField) WiFiManagerParameter(twelveHourCustomField_str); // custom html input
+
+  wm.addParameter(&ntpServerCustomField);
+  wm.addParameter(&gmtOffsetCustomField);
+  wm.addParameter(&daylightOffsetCustomField);
+  wm.addParameter(&defaultModeCustomField);
+  wm.addParameter(&twelveHourCustomField);
+
+  wm.setSaveParamsCallback(saveParamCallback);
+  wm.setConfigPortalBlocking(true);
+  bool res = true;
+  if (adhoc)
   {
-  case 0:               // hard reset
-    wm.resetSettings(); // fall through to normal setup
-
-  case 1: // normal startup
-    bool res;
+    wm.startConfigPortal("Soyuz");
+  }
+  else
+  {
     res = wm.autoConnect("Soyuz");
-
     if (!res)
     {
       Serial.println("Failed to connect");
-      // ESP.restart();
     }
     else
     {
-      Serial.println("connected...yeey :)");
+      Serial.println("connected.");
     }
-
-    break;
-  case 2: // adhoc settings change
-
-    // set configportal timeout
-    wm.setConfigPortalTimeout(300);
-
-    if (!wm.startConfigPortal("Soyuz"))
-    {
-      Serial.println("failed to connect and hit timeout");
-    }
-
-    // if you get here you have connected to the WiFi
-    Serial.println("connected...yeey :)");
-    break;
   }
-#endif
+  return res;
 }
+#endif
