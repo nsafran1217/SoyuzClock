@@ -10,13 +10,13 @@ This is meant to be an accurate replica of the Soyuz 744H clock as feature on Cu
 - `Soyuz-esp32` contains the PlatformIO project that runs the clock
 
 ## Part numbers
-- АЛС324А is the 7 segment LED display. They are avaliable on eBay or at tubes-store.com. They have the same quality issues as found in the real clock.
+- АЛС324А is the 7 segment LED display. They are available on eBay or at tubes-store.com. They have the same quality issues as found in the real clock.
 
-- МТ-1 is the toggle switch. They are avaliable on eBay.
+- МТ-1 is the toggle switch. They are available on eBay.
 
 - ПКн2-1 is the correct push button, however, they are hard to find in the west. I found some stores selling them in Ukraine and Russia, but each switch is at least $15 US, plus you need to convince the seller its worth their time to ship it to you.
 
-- KM1-1 is the mext best option. They are easily found on eBay. The push button is smaller than the real switch. This is what I am using for now.
+- KM1-1 is the next best option. They are easily found on eBay. The push button is smaller than the real switch. This is what I am using for now.
 
 
 # 
